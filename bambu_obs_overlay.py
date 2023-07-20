@@ -4,7 +4,7 @@ from pathlib import Path
 import paho.mqtt.client as mqtt
 import json
 import ssl
-
+import webcolors
 
 # Found on printer touch screen under Settings (hex icon) -> Network
 BAMBU_IP_ADDRESS = '192.168.x.x'
@@ -27,6 +27,19 @@ def on_connect(client, userdata, flags, rc):
     # Bambu requires you to subscribe promptly after connecting or it forces a discconnect
     client.subscribe(f"device/{SERIAL}/report")
 
+def split_string(string):
+    tuple_result = (int(string[:2],16), int(string[2:4],16), int(string[4:6],16))
+    return tuple_result
+
+# Expected input: 6 character hex string
+def rgb_to_color_name(rgb):
+    try:
+        color_tuple = split_string(rgb)
+        color_name = webcolors.rgb_to_name(color_tuple)
+    except ValueError:
+        # If the RGB value doesn't match any known color, return the hex code with a 0x prefeix
+        color_name = f"0x{rgb}"
+    return color_name
 
 # The callback for when a PUBLISH message is received from the server.
 # I'm really only using msg parameter here, but need to keep the first 2 args to match
@@ -73,6 +86,7 @@ def on_message(client, userdata, msg):
         with ams_text_path.open("w") as fp:
             for tray in doc['print']['ams']['ams'][0]['tray']:
                 tray_remain = ''
+                color_name = rgb_to_color_name(tray['cols'][0])
                 if active_ams == tray['id']:
                     active = " - In Use"
                 else:
@@ -83,12 +97,22 @@ def on_message(client, userdata, msg):
                     tray_type = tray['tray_type']
                 else:
                     tray_type = tray['tray_sub_brands']
-                fp.write(f"Tray {tray['id']}: {tray_type} {tray_remain}  {active}\n")
+                fp.write(f"Tray {tray['id']}: {tray_type} {color_name} {tray_remain}  {active}\n")
+
+            if active_ams == "254":
+                active = " - In Use"
+            else:
+                active = ""
+
+            color_name = rgb_to_color_name(doc['print']['vt_tray']['cols'][0])
+
+            fp.write(f"Ext. : {doc['print']['vt_tray']['tray_type']} {color_name} {active}")
 
 
     # Sometimes empty or diff doc structure returned
     # Swallow exception here and it'll just get retried next iteration
     except KeyError:
+        print("Logging error json")
         with telem_json_err_path.open("w") as fp:
             fp.write(json.dumps(doc))
 
