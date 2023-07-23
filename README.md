@@ -2,7 +2,7 @@
 Utility script to poll your printers MQTT and write telemtry to text files that can be consumed by OBS
 
 # Requirements
-- BambuLab printer with OBS configured to livestream (https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera)
+- BambuLab printer with OBS configured to livestream (https://wiki.bambulab.com/en/software/bambu-studio/virtual-camera).  This has only been tested on the X1 Carbon
 - Python3 execution environment on same machine OBS is running
 
 # Configuration
