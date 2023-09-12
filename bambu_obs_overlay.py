@@ -16,6 +16,7 @@ SERIAL = ''
 # What ever directory you want the output files written to
 OUTPUT_PATH = ''
 
+values = {}
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
@@ -65,26 +66,33 @@ def on_message(client, userdata, msg):
         with telem_json_path.open("w") as fp:
             fp.write(json.dumps(doc))
 
-        layer = doc['print'].get('layer_num', '?')
-        speed = doc['print'].get('spd_lvl', 2)
+        if not doc:
+            return
+
+        globals()['values'] = dict(values, **doc['print'])
+
+        print(values)
+
+        layer = values.get('layer_num', '?')
+        speed = values.get('spd_lvl', 2)
         speed_map = {1: 'Silent', 2: 'Standard', 3: 'Sport', 4: 'Ludacris'}
 
-        min_remain = doc['print']['mc_remaining_time']
+        min_remain = values['mc_remaining_time']
         # Time 15 minutes in the future
         future_time = now + timedelta(minutes=min_remain)
         future_time_str = future_time.strftime("%Y-%m-%d %H:%M")
 
-        active_ams = doc['print']['ams']['tray_now']
+        active_ams = values['ams']['tray_now']
 
         with telem_text_path.open("w") as fp:
-            fp.write(f"Layer: {layer} ({doc['print']['mc_percent']} %)\n"
-                     f"Nozzle Temp: {doc['print']['nozzle_temper']}/{doc['print']['nozzle_target_temper']}\n"
-                     f"Bed Temp: {doc['print']['bed_temper']}/{doc['print']['bed_target_temper']}\n"
+            fp.write(f"Layer: {layer} ({values['mc_percent']} %)\n"
+                     f"Nozzle Temp: {values['nozzle_temper']}/{values['nozzle_target_temper']}\n"
+                     f"Bed Temp: {values['bed_temper']}/{values['bed_target_temper']}\n"
                      f"Finish ETA: {future_time_str}\n"
                      f"Speed: {speed_map[speed]}")
 
         with ams_text_path.open("w") as fp:
-            for tray in doc['print']['ams']['ams'][0]['tray']:
+            for tray in values['ams']['ams'][0]['tray']:
                 tray_remain = ''
                 color_name = rgb_to_color_name(tray['cols'][0])
                 if active_ams == tray['id']:
@@ -104,9 +112,9 @@ def on_message(client, userdata, msg):
             else:
                 active = ""
 
-            color_name = rgb_to_color_name(doc['print']['vt_tray']['cols'][0])
+            color_name = rgb_to_color_name(values['vt_tray']['cols'][0])
 
-            fp.write(f"Ext. : {doc['print']['vt_tray']['tray_type']} {color_name} {active}")
+            fp.write(f"Ext. : {values['vt_tray']['tray_type']} {color_name} {active}")
 
 
     # Sometimes empty or diff doc structure returned
@@ -130,9 +138,9 @@ client.tls_insecure_set(True)
 
 client.on_connect = on_connect
 client.on_message = on_message
-
 client.connect(BAMBU_IP_ADDRESS, 8883, 60)
 
+client.publish(f"device/{SERIAL}/request", '{"pushing": {"command": "start", "sequence_id": 0}}')
 # Blocking call that processes network traffic, dispatches callbacks and
 # handles reconnecting.
 # Other loop*() functions are available that give a threaded interface and a
